@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data" / "characters"
 JSON_FILE = ROOT / "characters.json"
 URL_RE = re.compile(r"https?://\S+")
+PASSWORD_RE = re.compile(r"(?:提取码|pwd|password)\s*[:：]\s*([\w]+)", re.IGNORECASE)
 
 FIELD_NAMES = {
     "name": ["1.人物名", "人物名", "name"],
@@ -31,6 +32,16 @@ def extract_url(link_text: str) -> str:
     if match:
         return match.group(0)
     return link_text.strip()
+
+
+def extract_password(link_text: str) -> str:
+    """Extract extraction password/code from link text."""
+    if not link_text:
+        return ""
+    match = PASSWORD_RE.search(link_text)
+    if match:
+        return match.group(1).strip()
+    return ""
 
 
 def parse_time(value: str) -> str:
@@ -89,17 +100,19 @@ def parse_rows(rows: List[Dict[str, str]]) -> List[Dict[str, Any]]:
             continue
 
         url = extract_url(url_raw)
+        password = extract_password(url_raw)
         if not url:
             continue
 
-        parsed.append(
-            {
-                "name": name,
-                "url": url,
-                "uploader": author,
-                "time": end_time,
-            }
-        )
+        entry = {
+            "name": name,
+            "url": url,
+            "uploader": author,
+            "time": end_time,
+        }
+        if password:
+            entry["password"] = password
+        parsed.append(entry)
     return parsed
 
 
@@ -117,6 +130,8 @@ def merge_entries(existing: List[Dict[str, Any]], new_entries: List[Dict[str, An
                 existing_entry["uploader"] = entry["uploader"]
             if not existing_entry.get("time") and entry.get("time"):
                 existing_entry["time"] = entry["time"]
+            if not existing_entry.get("password") and entry.get("password"):
+                existing_entry["password"] = entry["password"]
         else:
             merged[key] = entry
 
